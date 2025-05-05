@@ -30,6 +30,7 @@ app.use("/api/work-history", workHistoryRoutes);
 app.use('/api', exportImportRoutes);
 app.use('/api', expenseRoutes);
 app.use('/api/profit', profitRoutes);
+app.use("/", (req, res) => res.send("Hello from the server"));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
