@@ -94,7 +94,7 @@ export const addExpense = (req, res) => {
 };
 
 export const getExpenses = (req, res) => {
-  const { adminId } = req.query;
+  const { adminId, startDate, endDate } = req.query;
 
   if (!adminId) {
     return res.status(400).json({ 
@@ -105,6 +105,12 @@ export const getExpenses = (req, res) => {
 
   let query = `SELECT * FROM expenses WHERE admin_id = ?`;
   const params = [adminId];
+
+  // Add date filtering if provided
+  if (startDate && endDate) {
+    query += ` AND DATE(created_at) BETWEEN ? AND ?`;
+    params.push(startDate, endDate);
+  }
 
   query += ` ORDER BY created_at DESC`;
 
