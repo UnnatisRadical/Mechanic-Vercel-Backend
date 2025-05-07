@@ -1,3 +1,4 @@
+// Updated profitController.js
 import db from "../db/db.js";
 
 const calculateProfit = (req, res) => {
@@ -97,7 +98,7 @@ const getFinanceSummary = (req, res) => {
 
   console.log("Expenses Date Range (Local):", startOfStartDateLocal, "to", endOfEndDateLocal);
 
-db.query(
+  db.query(
     `SELECT SUM(amount) as totalExpenses 
      FROM expenses 
      WHERE admin_id = ? AND created_at BETWEEN ? AND ?`,
@@ -133,14 +134,19 @@ db.query(
           const totalIncome = parseFloat(billResults[0].totalIncome || 0);
           const netBalance = totalIncome - totalExpenses;
 
-          // Fetch detailed expenses by payee
+          // Fetch all expenses with details
           db.query(
-            `SELECT payee_name AS name, SUM(amount) as expense, DATE(created_at) AS date 
+            `SELECT 
+              id,
+              expense_name as name, 
+              amount as expense,
+              DATE(created_at) AS date,
+              payee_name
              FROM expenses 
              WHERE admin_id = ? AND created_at BETWEEN ? AND ?
-             GROUP BY payee_name, DATE(created_at)`,
+             ORDER BY created_at DESC`,
             [adminId, startOfStartDateLocal, endOfEndDateLocal],
-            (detailExpenseError, detailExpenseResults) => {
+            (detailExpenseError, expenseDetails) => {
               if (detailExpenseError) {
                 console.error("Error fetching detailed expenses:", detailExpenseError);
                 return res.status(500).json({ 
@@ -149,14 +155,19 @@ db.query(
                 });
               }
 
-              // Fetch detailed income by customer
+              // Fetch all customers with their bill totals
               db.query(
-                `SELECT customer_name AS name, SUM(total_bill) as income, DATE(date) AS date 
+                `SELECT 
+                  id,
+                  customer_name as name, 
+                  SUM(total_bill) as income,
+                  DATE(date) AS date
                  FROM bills 
                  WHERE admin_id = ? AND date BETWEEN ? AND ?
-                 GROUP BY customer_name, DATE(date)`,
+                 GROUP BY customer_name, DATE(date)
+                 ORDER BY date DESC`,
                 [adminId, startOfStartDateIST, endOfEndDateIST],
-                (detailBillError, detailBillResults) => {
+                (detailBillError, incomeDetails) => {
                   if (detailBillError) {
                     console.error("Error fetching detailed bills:", detailBillError);
                     return res.status(500).json({ 
@@ -165,39 +176,32 @@ db.query(
                     });
                   }
 
-                  // Combine expenses and income into a single list
-                  const detailsMap = new Map();
-
-                  // Process expenses
-                  detailExpenseResults.forEach(item => {
-                    const key = `${item.name}-${item.date}`;
-                    detailsMap.set(key, {
-                      name: item.name,
+                  // Format the data for the table
+                  const tableData = [
+                    // Total row
+                    {
+                      id: 'total',
+                      name: 'TOTAL',
+                      expense: totalExpenses,
+                      income: totalIncome,
+                      date: null,
+                      isTotal: true
+                    },
+                    // Expense details
+                    ...expenseDetails.map(item => ({
+                      ...item,
                       expense: parseFloat(item.expense) || 0,
                       income: 0,
-                      date: item.date,
-                    });
-                  });
-
-                  // Process income
-                  detailBillResults.forEach(item => {
-                    const key = `${item.name}-${item.date}`;
-                    if (detailsMap.has(key)) {
-                      const entry = detailsMap.get(key);
-                      entry.income = parseFloat(item.income) || 0;
-                    } else {
-                      detailsMap.set(key, {
-                        name: item.name,
-                        expense: 0,
-                        income: parseFloat(item.income) || 0,
-                        date: item.date,
-                      });
-                    }
-                  });
-
-                  const details = Array.from(detailsMap.values());
-                  // Sort by date in descending order
-                  details.sort((a, b) => new Date(b.date) - new Date(a.date));
+                      isExpense: true
+                    })),
+                    // Income details
+                    ...incomeDetails.map(item => ({
+                      ...item,
+                      expense: 0,
+                      income: parseFloat(item.income) || 0,
+                      isIncome: true
+                    }))
+                  ];
 
                   res.status(200).json({
                     success: true,
@@ -205,7 +209,7 @@ db.query(
                       netBalance,
                       expenses: totalExpenses,
                       income: totalIncome,
-                      details,
+                      details: tableData,
                     },
                   });
                 }
