@@ -141,7 +141,6 @@ const getFinanceSummary = (req, res) => {
               expense_name as name, 
               amount as expense,
               DATE(created_at) AS date,
-              payee_name
              FROM expenses 
              WHERE admin_id = ? AND created_at BETWEEN ? AND ?
              ORDER BY created_at DESC`,
@@ -158,7 +157,7 @@ const getFinanceSummary = (req, res) => {
               // Fetch all customers with their bill totals
               db.query(
                 `SELECT 
-                  id,
+                  bill_id,
                   customer_name as name, 
                   SUM(total_bill) as income,
                   DATE(date) AS date
